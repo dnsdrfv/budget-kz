@@ -4,30 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Бюджет КЗ</title>
-<link rel="manifest" href="./manifest.webmanifest?v=2">
+<link rel="manifest" href="./manifest.webmanifest?v=3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Бюджет">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=2">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=2">
-<meta name="theme-color" content="#F1F5F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E1517" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F2F5FB" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B1220" media="(prefers-color-scheme: dark)">
 <style>
 :root{
   color-scheme:light;
-  --bg:#F1F5F5; --surface:#FFFFFF; --surface-2:#E9F0F0; --ink:#132529; --ink-2:#55686D; --ink-3:#86979C; --line:#D8E1E2;
-  --accent:#0F7B86; --accent-ink:#FFFFFF; --accent-soft:#D9ECEE; --accent-text:#0B6670;
-  --warn:#E09A0E; --bad:#C93A3A; --bad-soft:#F8E1E0; --bad-text:#B22F2F;
-  --track:#E1E9EA; --chip:#EDF2F3; --shadow:0 10px 30px rgba(19,37,41,.16); --tab-bg:rgba(255,255,255,.94);
+  --bg:#F2F5FB; --surface:#FFFFFF; --surface-2:#E8EEF8; --ink:#0E1A2E; --ink-2:#536079; --ink-3:#8A95AA; --line:#DCE3EF;
+  --accent:#0061FD; --accent-ink:#FFFFFF; --accent-soft:#E2ECFF; --accent-text:#0052D6;
+  --hero:#0061FD; --hero-over:#F0202E; --hero-track:rgba(255,255,255,.28); --on-hero:#FFFFFF; --on-hero-2:rgba(255,255,255,.84); --hero-warn:#FFD60A;
+  --warn:#FFC400; --warn-text:#8A5D00;
+  --bad:#FF2E3B; --bad-soft:#FFE3E5; --bad-text:#E0001B;
+  --good-text:#13801F; --good-soft:#E3F8E0;
+  --track:#E3E9F3; --chip:#EDF1F8; --shadow:0 10px 30px rgba(14,26,46,.16); --tab-bg:rgba(255,255,255,.94);
 }
 @media (prefers-color-scheme:dark){
   :root{
     color-scheme:dark;
-    --bg:#0E1517; --surface:#172022; --surface-2:#1F2B2E; --ink:#E8F0F1; --ink-2:#A3B4B8; --ink-3:#6F8186; --line:#263437;
-    --accent:#3BB4BF; --accent-ink:#06282B; --accent-soft:#163A3E; --accent-text:#6FD0D9;
-    --warn:#F2B33D; --bad:#E86060; --bad-soft:#3A2224; --bad-text:#F08A8A;
-    --track:#223033; --chip:#1F2B2E; --shadow:0 10px 30px rgba(0,0,0,.5); --tab-bg:rgba(23,32,34,.94);
+    --bg:#0B1220; --surface:#131C2E; --surface-2:#1B2638; --ink:#EAF0FA; --ink-2:#A5B1C6; --ink-3:#6C7891; --line:#233047;
+    --accent:#2F7BFF; --accent-ink:#FFFFFF; --accent-soft:#16294D; --accent-text:#82B4FF;
+    --hero:#0061FD; --hero-over:#E5202E; --hero-track:rgba(255,255,255,.25); --on-hero:#FFFFFF; --on-hero-2:rgba(255,255,255,.84); --hero-warn:#FFD60A;
+    --warn:#FFD60A; --warn-text:#FFD60A;
+    --bad:#FF4550; --bad-soft:#3D1A1F; --bad-text:#FF7A82;
+    --good-text:#62E06C; --good-soft:#17331B;
+    --track:#22304A; --chip:#1B2638; --shadow:0 10px 30px rgba(0,0,0,.5); --tab-bg:rgba(19,28,46,.94);
   }
 }
 *{box-sizing:border-box}
@@ -61,11 +67,23 @@ main{flex:1;padding:4px 16px calc(104px + env(safe-area-inset-bottom))}
 .navlbl{text-align:center;display:flex;flex-direction:column;line-height:1.2}
 .navlbl b{font-size:17px}
 .navlbl span{font-size:13px;color:var(--ink-2)}
-.hero{background:var(--surface);border-radius:18px;padding:18px 18px 16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.hero{background:var(--hero);color:var(--on-hero);border-radius:18px;padding:18px 18px 16px;box-shadow:0 8px 22px rgba(0,97,253,.24)}
+.hero.hero-over{background:var(--hero-over);box-shadow:0 8px 22px rgba(240,32,46,.28)}
+.hero-top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:22px}
+.hero .eyebrow{color:var(--on-hero-2)}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
+.pill-warn{background:var(--hero-warn);color:#1A1400}
+.pill-over{background:#FFFFFF;color:var(--hero-over)}
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .big{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:6px 0 4px;font-variant-numeric:tabular-nums}
-.hero-sub{font-size:14px;color:var(--ink-2)}
-.hero-sub.over,.over-text{color:var(--bad-text);font-weight:600}
+.hero-sub{font-size:14px;color:var(--on-hero-2)}
+.hero .bar{background:var(--hero-track)}
+.hero .bar i,.hero .bar i.over{background:#FFFFFF}
+.hero .bar i.warn{background:var(--hero-warn)}
+.hero .delta{color:var(--on-hero-2)}
+.hero .delta b{color:var(--on-hero)}
+.over-text{color:var(--bad-text);font-weight:600}
+.warn-text{color:var(--warn-text);font-weight:600}
 .bar{height:6px;border-radius:4px;background:var(--track);overflow:hidden;margin-top:10px}
 .bar i{display:block;height:100%;border-radius:4px;background:var(--accent);min-width:0}
 .bar i.warn{background:var(--warn)}
@@ -79,7 +97,7 @@ main{flex:1;padding:4px 16px calc(104px + env(safe-area-inset-bottom))}
 .tile b{display:block;font-size:17px;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .t-s{display:block;font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .bar{margin-top:8px;height:4px}
-.income{margin-top:10px;font-size:14px;color:var(--accent-text);background:var(--accent-soft);border-radius:12px;padding:8px 14px}
+.income{margin-top:10px;font-size:14px;color:var(--good-text);background:var(--good-soft);border-radius:12px;padding:8px 14px}
 .group{margin-top:18px}
 .group h2{margin:0 0 6px 4px;font-size:13px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);display:flex;justify-content:space-between;align-items:baseline}
 .group h2 span{font-weight:500;letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums}
@@ -123,7 +141,7 @@ main{flex:1;padding:4px 16px calc(104px + env(safe-area-inset-bottom))}
 .hrow .h-note{grid-area:note;font-size:13px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hrow .h-note:empty{display:none}
 .hrow .h-amt{grid-area:amt;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-.hrow .h-amt.neg,.hrow .h-amt.inc{color:var(--accent-text)}
+.hrow .h-amt.neg,.hrow .h-amt.inc{color:var(--good-text)}
 .more{display:block;width:100%;text-align:center;padding:14px;color:var(--accent-text);font-weight:600;background:var(--surface);border-radius:14px;margin-top:10px}
 .empty{text-align:center;color:var(--ink-3);padding:40px 16px;font-size:14px}
 .brow{padding:12px 14px;border-bottom:1px solid var(--line)}
@@ -462,11 +480,17 @@ function shift(n){
 /* ---- элементы обзора ---- */
 function barHtml(spent,budget,max){
   let w=0,cls='';
-  if(budget>0){const p=spent/budget;w=Math.max(0,Math.min(100,p*100));cls=p>1?'over':p>0.85?'warn':'';}
+  if(budget>0){const p=spent/budget;w=Math.max(0,Math.min(100,p*100));cls=p>1?'over':p>=0.9?'warn':'';}
   else if(max>0){w=Math.max(0,Math.min(100,spent/max*100));}
   return `<div class="bar"><i class="${cls}" style="width:${w.toFixed(1)}%"></i></div>`;
 }
-function leftText(spent,budget){return spent<=budget?`осталось ${money(budget-spent)}`:`<span class="over-text">сверх на ${money(spent-budget)}</span>`;}
+function leftText(spent,budget){const p=spent/budget;if(p>1)return `<span class="over-text">сверх на ${money(spent-budget)}</span>`;if(p>=0.9)return `<span class="warn-text">${Math.round(p*100)} % · осталось ${money(budget-spent)}</span>`;return `осталось ${money(budget-spent)}`;}
+function heroHtml(eyebrow,amount,budget,subNoBudget,deltaHtml){
+  const p=budget>0?amount/budget:0;const st=budget>0?(p>1?'over':p>=0.9?'warn':'ok'):'ok';
+  const pill=st==='over'?'<span class="pill pill-over">перерасход</span>':st==='warn'?`<span class="pill pill-warn">${Math.round(p*100)} % бюджета</span>`:'';
+  const sub=budget>0?`из ${money(budget)} · ${amount<=budget?`осталось ${money(budget-amount)}`:`сверх на ${money(amount-budget)}`}`:subNoBudget;
+  return `<section class="hero hero-${st}"><div class="hero-top"><div class="eyebrow">${esc(eyebrow)}</div>${pill}</div><div class="big">${money(amount)}</div><div class="hero-sub">${sub}</div>${budget>0?barHtml(amount,budget,0):''}${deltaHtml}</section>`;
+}
 function rowHtml(name,card,spent,budget,prev,prevName,max,subLeft){
   const sub=budget>0?`из ${money(budget)} · ${leftText(spent,budget)}`:(subLeft||'');
   const prevTxt=prev!=null&&state.hasPrev?`${prevName}: ${fmt(prev)}`:'';
@@ -528,8 +552,7 @@ function renderOverview(){
     const tb=spendCats.reduce((s,c)=>s+(+c.budget||0),0);
     const card=(k,by)=>spendCats.filter(c=>c.card===k).reduce((s,c)=>s+(by[c.name]||0),0);
     const cardB=k=>spendCats.filter(c=>c.card===k).reduce((s,c)=>s+(+c.budget||0),0);
-    html+=`<section class="hero"><div class="eyebrow">Расходы · ${esc(pi.eyebrow)}</div><div class="big">${money(vs)}</div>
-      <div class="hero-sub${vs>vb&&vb>0?' over':''}">${vb>0?`из ${money(vb)} · ${vs<=vb?`осталось ${money(vb-vs)}`:`сверх на ${money(vs-vb)}`}`:'бюджет не задан'}</div>${vb>0?barHtml(vs,vb,0):''}${delta(vs,vp,pi.prevName)}</section>`;
+    html+=heroHtml('Расходы · '+pi.eyebrow,vs,vb,'бюджет не задан',delta(vs,vp,pi.prevName));
     html+=`<div class="tiles">${tile('Всего',cur.total,tb)}${tile('Карта ФФ',card('ФФ',cur.by),cardB('ФФ'))}${tile('Карта К',card('К',cur.by),cardB('К'))}</div>`+incomeLine;
     html+=groupHtml('Расходы',varCats.map(c=>rowHtml(c.name,c.card,cur.by[c.name]||0,+c.budget||0,prev.by[c.name]||0,'пред.',0)),vs);
     html+=groupHtml('Остальное',fixedCats.map(c=>rowHtml(c.name,c.card,cur.by[c.name]||0,+c.budget||0,prev.by[c.name]||0,'пред.',0)),sumOf(fixedCats,cur.by));
@@ -537,8 +560,7 @@ function renderOverview(){
     html+=`<div class="group"><div class="list"><div class="total"><span>Всего<small>все категории</small></span><span>${money(cur.total)}<small style="text-align:right">из ${fmt(tb)}</small></span></div></div></div>`;
   }else if(state.period==='week'){
     const wk=spendCats.filter(c=>c.weekly);const ws=sumOf(wk,cur.by),wb=wk.reduce((s,c)=>s+weeklyBudget(c.budget),0),wp=sumOf(wk,prev.by);
-    html+=`<section class="hero"><div class="eyebrow">Недельные расходы · ${esc(pi.eyebrow)}</div><div class="big">${money(ws)}</div>
-      <div class="hero-sub${ws>wb&&wb>0?' over':''}">${wb>0?`из ${money(wb)} · ${ws<=wb?`осталось ${money(wb-ws)}`:`сверх на ${money(ws-wb)}`}`:'недельные лимиты не заданы'}</div>${wb>0?barHtml(ws,wb,0):''}${delta(ws,wp,pi.prevName)}</section>`;
+    html+=heroHtml('Недельные расходы · '+pi.eyebrow,ws,wb,'недельные лимиты не заданы',delta(ws,wp,pi.prevName));
     html+=`<div class="tiles two">${tile('Все траты за неделю',cur.total,0,'')}${tile('Пред. неделя',prev.total,0,'все категории')}</div>`+incomeLine;
     html+=groupHtml('Недельный лимит',wk.map(c=>rowHtml(c.name,c.card,cur.by[c.name]||0,weeklyBudget(c.budget),prev.by[c.name]||0,'пред.',0)),ws);
     const others=[...spendCats.filter(c=>!c.weekly).map(c=>({n:c.name,card:c.card})),...unknown.map(n=>({n,card:''}))].filter(o=>(cur.by[o.n]||0)!==0);
@@ -548,8 +570,7 @@ function renderOverview(){
     const y=state.cur.yy;html+=chartHtml(y);
     const monthsWithData=new Set();for(const it of state.items.values()){if(it.d.slice(0,4)===String(y)){const c=CM[it.c];if(!(c&&c.group==='income'))monthsWithData.add(it.d.slice(5,7));}}
     const n=monthsWithData.size||1;
-    html+=`<section class="hero"><div class="eyebrow">Все расходы · ${esc(pi.eyebrow)}</div><div class="big">${money(cur.total)}</div>
-      <div class="hero-sub">в среднем ${money(Math.round(cur.total/n))} в месяц · ${monthsWithData.size} мес. с данными</div>${delta(cur.total,prev.total,pi.prevName)}</section>`;
+    html+=heroHtml('Все расходы · '+pi.eyebrow,cur.total,0,`в среднем ${money(Math.round(cur.total/n))} в месяц · ${monthsWithData.size} мес. с данными`,delta(cur.total,prev.total,pi.prevName));
     html+=`<div class="tiles two">${tile('Расходы (переменные)',sumOf(varCats,cur.by),0,`ср. ${fmt(Math.round(sumOf(varCats,cur.by)/n))} в мес.`)}${tile('Остальное',sumOf(fixedCats,cur.by),0,`ср. ${fmt(Math.round(sumOf(fixedCats,cur.by)/n))} в мес.`)}</div>`+incomeLine;
     const all=[...spendCats.map(c=>({n:c.name,card:c.card})),...unknown.map(nm=>({n:nm,card:''}))].filter(o=>(cur.by[o.n]||0)!==0).sort((a,b)=>(cur.by[b.n]||0)-(cur.by[a.n]||0));
     const mx=Math.max(0,...all.map(o=>cur.by[o.n]));

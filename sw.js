@@ -1,7 +1,7 @@
 /* Бюджет КЗ — service worker: кэш оболочки для мгновенного запуска и работы офлайн.
    Запросы к api.github.com никогда не кэшируются. */
-const VERSION = 'bkz-v2';
-const SHELL = ['./', './index.html', './manifest.webmanifest?v=2', './icons/icon-192.png?v=2', './icons/icon-512.png?v=2', './icons/maskable-512.png?v=2', './icons/apple-touch-icon.png?v=2'];
+const VERSION = 'bkz-v3';
+const SHELL = ['./', './index.html', './manifest.webmanifest?v=3', './icons/icon-192.png?v=2', './icons/icon-512.png?v=2', './icons/maskable-512.png?v=2', './icons/apple-touch-icon.png?v=2'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
