@@ -369,6 +369,7 @@ const GH={
   cfg:null,
   api(){return ((this.cfg&&this.cfg.api)||'https://api.github.com').replace(/\/$/,'');},
   repoUrl(){return `${this.api()}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(this.cfg.repo)}`;},
+  cpath(path){return this.repoUrl()+'/contents/'+path.split('/').map(encodeURIComponent).join('/');},
   headers(raw){return {'Authorization':'Bearer '+this.cfg.token,'Accept':raw?'application/vnd.github.raw+json':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};},
   async fetch(url,opts){let r;try{r=await fetch(url,Object.assign({cache:'no-store'},opts));}catch(e){throw mkErr('network','Нет связи с GitHub');}
     if(r.status===401)throw mkErr('auth','Токен не принят GitHub');
@@ -377,40 +378,74 @@ const GH={
   async checkRepo(){const r=await this.fetch(this.repoUrl(),{headers:this.headers(false)});
     if(r.status===404)throw mkErr('notfound','Репозиторий не найден или токен без доступа к нему');
     if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);const j=await r.json();return {push:!!(j.permissions&&j.permissions.push),isPrivate:!!j.private};},
-  async listDir(path){const r=await this.fetch(this.repoUrl()+'/contents/'+path,{headers:this.headers(false)});if(r.status===404)return [];if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);const j=await r.json();return Array.isArray(j)?j:[];},
-  async getRaw(path){const r=await this.fetch(this.repoUrl()+'/contents/'+path,{headers:this.headers(true)});if(r.status===404)return null;if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);return r.text();},
+  async listDir(path){const r=await this.fetch(this.cpath(path),{headers:this.headers(false)});if(r.status===404)return [];if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);const j=await r.json();return Array.isArray(j)?j:[];},
+  async getRaw(path){const r=await this.fetch(this.cpath(path),{headers:this.headers(true)});if(r.status===404)return null;if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);return r.text();},
   async getSha(path){const parts=path.split('/');const name=parts.pop();const list=await this.listDir(parts.join('/'));const f=list.find(e=>e.name===name);return f?f.sha:null;},
   async put(path,text,sha,message){const body={message,content:b64enc(text)};if(sha)body.sha=sha;
-    const r=await this.fetch(this.repoUrl()+'/contents/'+path,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},this.headers(false)),body:JSON.stringify(body)});
+    const r=await this.fetch(this.cpath(path),{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},this.headers(false)),body:JSON.stringify(body)});
     if(r.status===409||r.status===422)throw mkErr('conflict','Конфликт версий файла');
-    if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);const j=await r.json();return j.content.sha;}
+    if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);const j=await r.json();return j.content.sha;},
+  async del(path,sha,message){const r=await this.fetch(this.cpath(path),{method:'DELETE',headers:Object.assign({'Content-Type':'application/json'},this.headers(false)),body:JSON.stringify({message,sha})});
+    if(r.status===404||r.status===409||r.status===422)return false;if(!r.ok)throw mkErr('http','GitHub ответил '+r.status);return true;}
 };
+
+/* ---- входящие из шортката: inbox/<имя>.json = {a, c, n, d, t} ---- */
+function normInbox(name,o){
+  if(!o||typeof o!=='object'||Array.isArray(o))return null;
+  const num=v=>{if(typeof v==='number')return v;const n=parseFloat(String(v??'').replace(/[\s\u00a0₸]/g,'').replace(',','.'));return isFinite(n)?n:NaN;};
+  const a=Math.round(num(o.a??o.amount??o['Сумма'])*100)/100;if(!a)return null;
+  const c=String(o.c??o.category??o['Категория']??'').trim()||'Другое';
+  const t=String(o.t??o.time??'').trim()||new Date().toISOString();
+  let d=String(o.d??o.date??'').trim(),m=d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)d=`${m[1]}-${pad(m[2])}-${pad(m[3])}`;else{m=d.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);d=m?`${m[3]}-${pad(m[2])}-${pad(m[1])}`:'';}
+  if(!d){m=t.match(/^(\d{4})-(\d{2})-(\d{2})/);d=m?`${m[1]}-${m[2]}-${m[3]}`:TODAY;}
+  const it={id:'sc-'+name.replace(/\.json$/i,'').replace(/[^\w.-]/g,''),a,c,d,t,s:'shortcut'};
+  const n=String(o.n??o.note??o['Комментарий']??'').trim();if(n)it.n=n;
+  return it;
+}
 
 /* ---- данные: файлы по годам + категории ---- */
 const DATA={
-  years:new Map(),cats:{sha:null,list:null},
+  years:new Map(),cats:{sha:null,list:null},inbox:[],
   ser(items){return '[\n'+items.map(i=>JSON.stringify(i)).join(',\n')+'\n]\n';},
   async loadAll(){
-    const entries=await GH.listDir('data');
+    const [entries,inboxEntries]=await Promise.all([GH.listDir('data'),GH.listDir('inbox')]);
     const yf=entries.filter(e=>e.type==='file'&&/^expenses-\d{4}\.json$/.test(e.name));
     const cf=entries.find(e=>e.type==='file'&&e.name==='categories.json');
     const years=new Map();
-    await Promise.all(yf.map(async f=>{const txt=await GH.getRaw('data/'+f.name);let arr;try{arr=JSON.parse(txt||'[]');}catch(e){throw mkErr('parse','Файл '+f.name+' повреждён');}years.set(f.name.slice(9,13),{sha:f.sha,items:Array.isArray(arr)?arr:[]});}));
-    let cl={sha:null,list:null};
-    if(cf){const txt=await GH.getRaw('data/categories.json');try{const j=JSON.parse(txt);cl={sha:cf.sha,list:Array.isArray(j.list)&&j.list.length?j.list:null};}catch(e){throw mkErr('parse','categories.json повреждён');}}
-    this.years=years;this.cats=cl;this.rebuild();this.saveCache();
+    await Promise.all(yf.map(async f=>{const y=f.name.slice(9,13);const old=this.years.get(y);if(old&&old.sha===f.sha){years.set(y,old);return;}
+      const txt=await GH.getRaw('data/'+f.name);let arr;try{arr=JSON.parse(txt||'[]');}catch(e){throw mkErr('parse','Файл '+f.name+' повреждён');}years.set(y,{sha:f.sha,items:Array.isArray(arr)?arr:[]});}));
+    let cl=this.cats;
+    if(!cf)cl={sha:null,list:null};
+    else if(cl.sha!==cf.sha||!cl.list){const txt=await GH.getRaw('data/categories.json');try{const j=JSON.parse(txt);cl={sha:cf.sha,list:Array.isArray(j.list)&&j.list.length?j.list:null};}catch(e){throw mkErr('parse','categories.json повреждён');}}
+    const inbox=[];
+    await Promise.all(inboxEntries.filter(e=>e.type==='file'&&/\.json$/i.test(e.name)).map(async f=>{const old=this.inbox.find(x=>x.path===f.path&&x.sha===f.sha);if(old){inbox.push(old);return;}
+      const txt=await GH.getRaw(f.path);let o=null;try{o=JSON.parse(txt);}catch(e){}inbox.push({name:f.name,path:f.path,sha:f.sha,item:normInbox(f.name,o)});}));
+    inbox.sort((a,b)=>a.name.localeCompare(b.name));
+    this.years=years;this.cats=cl;this.inbox=inbox;this.rebuild();this.saveCache();
   },
-  rebuild(){state.items=new Map();for(const yr of this.years.values())for(const it of yr.items)if(it&&it.id&&it.d)state.items.set(it.id,it);state.cats=this.cats.list;applyPendingLocally();},
-  saveCache(){lsSet(LS.cache,{years:[...this.years],cats:this.cats,at:Date.now()});},
-  loadCache(){const c=lsGet(LS.cache);if(!c||!Array.isArray(c.years))return false;this.years=new Map(c.years);this.cats=c.cats||{sha:null,list:null};this.rebuild();return true;},
+  rebuild(){state.items=new Map();for(const yr of this.years.values())for(const it of yr.items)if(it&&it.id&&it.d)state.items.set(it.id,it);
+    for(const f of this.inbox)if(f.item&&!state.items.has(f.item.id))state.items.set(f.item.id,f.item);state.cats=this.cats.list;applyPendingLocally();},
+  saveCache(){lsSet(LS.cache,{years:[...this.years],cats:this.cats,inbox:this.inbox,at:Date.now()});},
+  loadCache(){const c=lsGet(LS.cache);if(!c||!Array.isArray(c.years))return false;this.years=new Map(c.years);this.cats=c.cats||{sha:null,list:null};this.inbox=Array.isArray(c.inbox)?c.inbox:[];this.rebuild();return true;},
   async mutateYear(year,fn,message){
     for(let attempt=0;attempt<3;attempt++){
       let yr=this.years.get(year);
       if(!yr||attempt>0){const path=`data/expenses-${year}.json`;const sha=await GH.getSha(path);const txt=sha?await GH.getRaw(path):null;let arr=[];try{arr=txt?JSON.parse(txt):[];}catch(e){throw mkErr('parse','Файл за '+year+' повреждён');}yr={sha,items:Array.isArray(arr)?arr:[]};}
       const next=fn(yr.items.map(x=>Object.assign({},x))).sort(byDT);
+      if(yr.sha&&this.ser(next)===this.ser(yr.items))return; // нечего менять — не создаём пустой коммит
       try{const sha=await GH.put(`data/expenses-${year}.json`,this.ser(next),yr.sha,message);this.years.set(year,{sha,items:next});return;}
       catch(e){if(e.code!=='conflict'||attempt===2)throw e;}
     }
+  },
+  async absorbInbox(){
+    const ready=this.inbox.filter(f=>f.item);if(!ready.length)return 0;
+    const byYear={};for(const f of ready){const y=f.item.d.slice(0,4);(byYear[y]=byYear[y]||[]).push(f.item);}
+    for(const y of Object.keys(byYear)){const items=byYear[y];
+      await this.mutateYear(y,arr=>{const have=new Set(arr.map(x=>x.id));return arr.concat(items.filter(i=>!have.has(i.id)));},`Из шортката: ${items.length} ${plural(items.length,'трата','траты','трат')}`);}
+    for(const f of ready)await GH.del(f.path,f.sha,'Входящие: перенесено в data/expenses');
+    const done=new Set(ready.map(f=>f.path));this.inbox=this.inbox.filter(f=>!done.has(f.path));
+    return ready.length;
   },
   async saveCats(list){
     for(let attempt=0;attempt<3;attempt++){
@@ -426,9 +461,11 @@ const SYNC={
   pending:lsGet(LS.pending)||[],busy:false,
   add(op){this.pending.push(op);lsSet(LS.pending,this.pending);},
   async flush(){
-    if(this.busy||!GH.cfg||!this.pending.length)return;
+    if(this.busy||!GH.cfg||(!this.pending.length&&!DATA.inbox.some(f=>f.item)))return;
     this.busy=true;renderHeader();
-    try{while(this.pending.length){await runOp(this.pending[0]);this.pending.shift();lsSet(LS.pending,this.pending);}state.syncError=null;DATA.rebuild();DATA.saveCache();}
+    try{while(this.pending.length){await runOp(this.pending[0]);this.pending.shift();lsSet(LS.pending,this.pending);}
+      const n=await DATA.absorbInbox();if(n)toast(`Из шортката: ${n} ${plural(n,'трата','траты','трат')}`);
+      state.syncError=null;DATA.rebuild();DATA.saveCache();}
     catch(e){state.syncError=e;}
     finally{this.busy=false;render();}
   }
@@ -437,14 +474,15 @@ async function runOp(op){
   if(op.type==='put'){const y=op.item.d.slice(0,4);
     if(op.prevYear&&op.prevYear!==y)await DATA.mutateYear(op.prevYear,items=>items.filter(x=>x.id!==op.item.id),'Перенос записи '+op.item.id);
     await DATA.mutateYear(y,items=>items.filter(x=>x.id!==op.item.id).concat([op.item]),op.msg);}
-  else if(op.type==='del')await DATA.mutateYear(op.year,items=>items.filter(x=>x.id!==op.id),op.msg);
+  else if(op.type==='del'){await DATA.mutateYear(op.year,items=>items.filter(x=>x.id!==op.id),op.msg);
+    const f=DATA.inbox.find(x=>x.item&&x.item.id===op.id);if(f){await GH.del(f.path,f.sha,'Входящие: удалено в приложении');DATA.inbox=DATA.inbox.filter(x=>x!==f);}}
   else if(op.type==='cats')await DATA.saveCats(op.list);
 }
 function applyOpLocally(op){if(op.type==='put')state.items.set(op.item.id,op.item);else if(op.type==='del')state.items.delete(op.id);else if(op.type==='cats')state.cats=op.list;}
 function applyPendingLocally(){for(const op of SYNC.pending)applyOpLocally(op);}
 function commitOp(op){applyOpLocally(op);SYNC.add(op);render();SYNC.flush();}
 async function refresh(force){
-  if(!GH.cfg||state.loading)return;if(!force&&Date.now()-state.lastRefresh<30000)return;
+  if(!GH.cfg||state.loading)return;if(!force&&Date.now()-state.lastRefresh<3000)return;
   state.loading=true;renderHeader();
   try{await DATA.loadAll();state.syncError=null;state.lastRefresh=Date.now();}catch(e){state.syncError=e;}
   finally{state.loading=false;render();}
@@ -650,7 +688,7 @@ function openSheet(item){
   $('#f-date').value=item?item.d:TODAY;
   $('#f-delete').hidden=!item||readOnly();
   $('#f-save').hidden=readOnly();
-  $('#f-meta').textContent=item?`Добавлено ${fmtTs(item.t)}${item.s==='archive'?' · из архива таблицы':item.s==='form'?' · из Google-формы':''}`:'';
+  $('#f-meta').textContent=item?`Добавлено ${fmtTs(item.t)}${item.s==='archive'?' · из архива таблицы':item.s==='form'?' · из Google-формы':item.s==='shortcut'?' · из шортката':''}`:'';
   renderChips();
   $('#sheet').hidden=false;
   if(!item)setTimeout(()=>$('#f-amount').focus(),50);
@@ -690,7 +728,7 @@ function openSetup(){
   $('#s-owner').value=c?c.owner:DEFAULT_OWNER;$('#s-repo').value=c?c.repo:DEFAULT_REPO;$('#s-token').value='';
   $('#s-token').placeholder=c?'оставьте пустым, чтобы не менять':'github_pat_…';
   $('#s-connected').hidden=!c;
-  if(c)$('#s-info').textContent=`Подключено: ${c.owner}/${c.repo} · записей: ${state.items.size}${SYNC.pending.length?` · не отправлено: ${SYNC.pending.length}`:''}`;
+  if(c)$('#s-info').textContent=`Подключено: ${c.owner}/${c.repo} · записей: ${state.items.size}${SYNC.pending.length?` · не отправлено: ${SYNC.pending.length}`:''}${DATA.inbox.some(f=>!f.item)?` · нераспознанных во входящих: ${DATA.inbox.filter(f=>!f.item).length}`:''}`;
   $('#s-install').hidden=!(/iPhone|iPad/.test(navigator.userAgent)&&!window.navigator.standalone);
   $('#setup').hidden=false;
 }
@@ -801,6 +839,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeSheet();if(GH.
 $('#newcat').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#addcat').click();}});
 window.addEventListener('online',()=>{state.syncError=null;renderHeader();SYNC.flush();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){refresh(false);SYNC.flush();}});
+setInterval(()=>{if(document.visibilityState==='visible'&&$('#sheet').hidden)refresh(false);},60000);
 
 /* ---- запуск ---- */
 GH.cfg=lsGet(LS.cfg);
